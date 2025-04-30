@@ -2,8 +2,8 @@ import {CronJob} from "cron";
 import _ from "lodash";
 import {acquireNewSteamClient, followingPlayers, getSteamClient, notifyPlayerInGame,} from "./app.js";
 
-// Cron schedule: Every hour at minute 0
-const CRON_SCHEDULE = "0 * * * *";
+// Cron schedule: Every minute at 0 seconds
+const CRON_SCHEDULE = "0 * * * * *";
 const TIMEZONE = "Asia/Ho_Chi_Minh";
 const PARTY_SEARCH_TIMEOUT_MS = 60000;
 const NOTIFY_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
@@ -44,25 +44,15 @@ export async function initCronJob() {
  */
 async function partySearchAndNotify() {
     const steamClient = getSteamClient();
-    if (!steamClient || isAcquiringSteamClient) {
-        if (!steamClient) {
-            console.warn("Steam client unavailable.");
-        }
-        if (isAcquiringSteamClient) {
-            console.warn("Steam client is currently being acquired.");
-        }
-        return;
-    }
+    if (!steamClient || isAcquiringSteamClient) return;
 
-
+    // If too many failures, reacquire a new SteamClient
     if (consecutiveFailCount > MAX_STEAM_FAILS) {
         console.warn("Too many failures. Re-acquiring Steam client.");
         consecutiveFailCount = 0;
         isAcquiringSteamClient = true;
         try {
-            console.log("Attempting to acquire new Steam client...");
             await acquireNewSteamClient();
-            console.log("New Steam client successfully acquired.");
         } catch (error) {
             console.error("Steam client reacquisition failed:", error);
         } finally {
@@ -76,34 +66,26 @@ async function partySearchAndNotify() {
     let primePlayers = [];
     let nonPrimePlayers = [];
     try {
-        console.log("Searching for prime players...");
         primePlayers = (await steamClient.partySearch({
             prime: true,
             rank: "Gold Nova I",
             game_type: "Competitive",
             timeout: PARTY_SEARCH_TIMEOUT_MS,
         })) || [];
-        console.log(`Found ${primePlayers.length} prime players.`);
-
-        console.log("Searching for non-prime players...");
         nonPrimePlayers = (await steamClient.partySearch({
             prime: false,
             rank: "Gold Nova I",
             game_type: "Competitive",
             timeout: PARTY_SEARCH_TIMEOUT_MS,
         })) || [];
-        console.log(`Found ${nonPrimePlayers.length} non-prime players.`);
     } catch (err) {
         console.error("Party search error:", err);
         consecutiveFailCount++;
         return;
     }
 
-    const totalPlayers = [...primePlayers, ...nonPrimePlayers];
-    console.log(`Total players before deduplication: ${totalPlayers.length}`);
-    const uniquePlayers = _.uniqBy(totalPlayers, "steamId");
-    console.log(`Total unique players after deduplication: ${uniquePlayers.length}`);
-
+    // Merge and deduplicate players by steamId
+    const uniquePlayers = _.uniqBy([...primePlayers, ...nonPrimePlayers], "steamId");
     if (!uniquePlayers.length) {
         console.warn("No players found in party search.");
         consecutiveFailCount++;
@@ -112,28 +94,18 @@ async function partySearchAndNotify() {
 
     steamClient.log(`Party search found ${uniquePlayers.length} players.`);
 
+    // Filter for those being followed and not recently notified
     const now = Date.now();
     const playersToNotify = uniquePlayers.filter(player => {
-        if (!followingPlayers.has(player.steamId)) {
-            console.log(`Skipping ${player.steamId} - not followed.`);
-            return false;
-        }
+        if (!followingPlayers.has(player.steamId)) return false;
         const lastNotified = lastNotifyTimestampMap[player.steamId] || 0;
-        if (now - lastNotified < NOTIFY_COOLDOWN_MS) {
-            console.log(`Skipping ${player.steamId} - notified recently.`);
-            return false;
-        }
+        if (now - lastNotified < NOTIFY_COOLDOWN_MS) return false;
         lastNotifyTimestampMap[player.steamId] = now;
-        console.log(`Player ${player.steamId} added to notify list.`);
         return true;
     });
 
-    if (!playersToNotify.length) {
-        console.log("No players to notify.");
-        return;
-    }
+    if (!playersToNotify.length) return;
 
-    console.log(`Notifying ${playersToNotify.length} players.`);
     await notifyPlayerInGame(playersToNotify);
-    // Optionally: sendDiscordMessage(playersToNotify);
+    // Optionally, sendDiscordMessage(playersToNotify) if that's your use-case
 }
