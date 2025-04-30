@@ -92,7 +92,7 @@ export async function acquireNewSteamClient() {
                 console.log(`New Steam client logged in.`);
                 return client;
             }
-            await client.logOff();
+            client.logOff();
         }
         console.warn("No usable Steam client found.");
     } catch (err) {
