@@ -22,7 +22,7 @@ let isAcquiringSteamClient = false;
 export async function initCronJob() {
     console.log("Initializing Party Search Cron...");
 
-    new CronJob(
+    const cronJob = new CronJob(
         CRON_SCHEDULE,
         async () => {
             try {
@@ -35,6 +35,7 @@ export async function initCronJob() {
         true,
         TIMEZONE
     );
+    cronJob.start();
 }
 
 /**
