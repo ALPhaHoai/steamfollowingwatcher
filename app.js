@@ -3,7 +3,7 @@ import cookieParser from "cookie-parser";
 import logger from "morgan";
 import axios from "axios";
 import indexRouter from "./routes/index.js";
-import { initCronJob } from "./cronjob.js";
+import {initCronJob} from "./cronjob.js";
 import SteamClient from "steamutils/SteamClient.js";
 import {decryptData} from "./crypto_db.js";
 
@@ -12,7 +12,7 @@ const app = express();
 // --------- Middleware ---------
 app.use(logger("dev"));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
 
 // --------- Routes ---------
@@ -35,7 +35,7 @@ const RELOAD_PLAYERS_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 async function loadFollowingPlayers() {
     try {
-        const { data: steamIds } = await axios.get(`${process.env.API_URL}/getFollowingPlayers`);
+        const {data: {result: steamIds}} = await axios.get(`${process.env.API_URL}/getFollowingPlayers`);
         if (Array.isArray(steamIds) && steamIds.length) {
             followingPlayers.clear();
             steamIds.forEach(id => followingPlayers.add(id));
@@ -49,7 +49,7 @@ async function loadFollowingPlayers() {
 /** Get an array of non-prime store accounts */
 async function getNonprimeStoreAccounts() {
     try {
-        const { data: accounts } = await axios.get(`${process.env.API_URL}/getRandomStoreMyAccount?limit=20`);
+        const {data: {result: accounts}} = await axios.get(`${process.env.API_URL}/getRandomStoreMyAccount?limit=20`);
         return Array.isArray(accounts) ? accounts.map(function (account) {
             return {
                 cookie: decryptData(account.cookie)
@@ -82,7 +82,7 @@ export async function acquireNewSteamClient() {
         console.log("Searching for usable Steam client...");
 
         for (const account of accounts) {
-            const client = new SteamClient({ cookie: account.cookie });
+            const client = new SteamClient({cookie: account.cookie});
             const playable = await client.playCSGOSilent();
 
             if (playable) {
