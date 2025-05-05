@@ -7,6 +7,13 @@ import { initCronJob } from "./cronjob.js";
 import SteamClient from "steamutils/SteamClient.js";
 import { decryptData } from "./crypto_db.js";
 
+const api = axios.create({
+  baseURL: process.env.API_URL,
+  headers: {
+    [process.env.API_AUTH_HEADER_NAME]: process.env.API_AUTH_HEADER_VALUE
+  }
+});
+
 const app = express();
 
 // --------- Middleware ---------
@@ -40,7 +47,7 @@ async function loadFollowingPlayers() {
   try {
     const {
       data: { result: steamIds },
-    } = await axios.get(`${process.env.API_URL}/getFollowingPlayers`);
+    } = await api.get(`/getFollowingPlayers`);
     if (Array.isArray(steamIds) && steamIds.length) {
       followingPlayers.clear();
       steamIds.forEach((id) => followingPlayers.add(id));
@@ -61,8 +68,8 @@ async function getNonprimeStoreAccounts() {
   try {
     const {
       data: { result: accounts },
-    } = await axios.get(
-      `${process.env.API_URL}/getRandomStoreMyAccount?limit=20`,
+    } = await api.get(
+      `/getRandomStoreMyAccount?limit=20`,
     );
 
     if (!Array.isArray(accounts)) {
@@ -90,7 +97,7 @@ export async function notifyPlayerInGame(players) {
   );
 
   try {
-    await axios.post(`${process.env.API_URL}/notifyPlayersInGame`, players);
+    await api.post(`/notifyPlayersInGame`, players);
     console.log(
       `[${timestamp}] Successfully notified API for ${players.length} player(s).`,
     );
